@@ -11,25 +11,6 @@ interface Agent {
   // stm and ltm are complex, maybe not displayed directly in list
 }
 
-// Mock API functions (replace with actual API calls later)
-const mockGetAgents = async (): Promise<Agent[]> => {
-  console.log("Fetching agents (mock)...");
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-  return [
-    { id: 'agent1', name: 'Data Analyst Agent', role: 'Analyst', config: { domain: 'finance' } },
-    { id: 'agent2', name: 'Code Generator Agent', role: 'Developer', config: { language: 'python' } },
-    { id: 'manager_001', name: 'DefaultWorkflowManager', role: 'Manager', config: {} },
-  ];
-};
-
-const mockCreateAgent = async (agentData: Omit<Agent, 'id'>): Promise<Agent> => {
-  console.log("Creating agent (mock):", agentData);
-  await new Promise(resolve => setTimeout(resolve, 500));
-  const newAgent = { ...agentData, id: `agent${Math.floor(Math.random() * 1000)}` };
-  alert(`Mock Agent Created: ${newAgent.name} (ID: ${newAgent.id})\nData: ${JSON.stringify(newAgent)}`);
-  return newAgent;
-};
-
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,12 +25,16 @@ export default function AgentsPage() {
     const loadAgents = async () => {
       try {
         setIsLoading(true);
-        // const data = await fetch('/api/agents').then(res => res.json()); // TODO: Replace with actual API
-        const data = await mockGetAgents();
+        const response = await fetch('/api/agents');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: response.statusText }));
+          throw new Error(errorData.message || 'Failed to fetch agents');
+        }
+        const data = await response.json();
         setAgents(data);
         setError(null);
       } catch (err) {
-        setError('Failed to load agents.');
+        setError(err.message || 'Failed to load agents.');
         console.error(err);
       } finally {
         setIsLoading(false);
@@ -71,24 +56,30 @@ export default function AgentsPage() {
           return;
         }
       }
-      // TODO: Replace with actual API call
-      const createdAgent = await mockCreateAgent({ 
-        name: newAgentName, 
-        role: newAgentRole, 
-        config: parsedConfig 
+      const response = await fetch('/api/agents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newAgentName, role: newAgentRole, config: parsedConfig, stm: {}, ltm: {} }), // Add empty stm/ltm for AbstractAgentPydantic
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || 'Failed to create agent');
+      }
+      const createdAgent = await response.json();
       setAgents(prevAgents => [...prevAgents, createdAgent]);
       setNewAgentName('');
       setNewAgentRole('Generic Agent');
       setNewAgentConfig('');
     } catch (err) {
-      setError('Failed to create agent.');
+      setError(err.message || 'Failed to create agent.');
       console.error(err);
     }
   };
 
-  if (isLoading) return <div className="p-4"><p>Loading agents...</p></div>;
-  // if (error) return <div className="p-4"><p className="text-red-500">{error}</p></div>; // Show error below form instead
+  // Moved isLoading display and error display to be part of the main layout
+  // if (isLoading) return <div className="p-4"><p>Loading agents...</p></div>; 
 
   return (
     <div className="container mx-auto p-4">
@@ -131,7 +122,7 @@ export default function AgentsPage() {
             />
           </div>
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-          <button 
+          <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
           >
@@ -141,21 +132,25 @@ export default function AgentsPage() {
       </div>
 
       <h2 className="text-xl font-semibold mb-3">Existing Agents</h2>
-      {agents.length === 0 && !isLoading && <p>No agents defined yet.</p>}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.map(agent => (
-          <div key={agent.id} className="p-4 border rounded shadow">
-            <h3 className="text-lg font-semibold">{agent.name}</h3>
-            <p className="text-sm text-gray-600">ID: {agent.id}</p>
-            <p className="text-sm text-gray-600">Role: {agent.role}</p>
-            {agent.config && Object.keys(agent.config).length > 0 && (
-              <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                {JSON.stringify(agent.config, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
+      {isLoading && <p>Loading agents...</p>}
+      {!isLoading && error && <p className="text-red-500">{error}</p>} {/* Display error if not loading */}
+      {!isLoading && !error && agents.length === 0 && <p>No agents defined yet.</p>}
+      {!isLoading && !error && agents.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {agents.map(agent => (
+            <div key={agent.id} className="p-4 border rounded shadow">
+              <h3 className="text-lg font-semibold">{agent.name}</h3>
+              <p className="text-sm text-gray-600">ID: {agent.id}</p>
+              <p className="text-sm text-gray-600">Role: {agent.role}</p>
+              {agent.config && Object.keys(agent.config).length > 0 && (
+                <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                  {JSON.stringify(agent.config, null, 2)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
