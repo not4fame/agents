@@ -2,26 +2,6 @@
 
 import React, { useState } from 'react';
 
-// Mock API function (replace with actual API calls later)
-const mockRunMainTask = async (taskData: any): Promise<any> => {
-  console.log("Running main task (mock):", taskData);
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-  const mockResponse = {
-    main_task_id: `maintask_${Math.random().toString(36).substr(2, 9)}`,
-    status: "COMPLETED (mock)",
-    iterations: Math.floor(Math.random() * 5) + 1,
-    results: { summary: "Task completed successfully by mock." },
-    subtasks: [
-      { id: "sub1", name: "Mock Subtask 1", status: "COMPLETED", results: { output: "Mock output 1" } },
-      { id: "sub2", name: "Mock Subtask 2", status: "COMPLETED", results: { output: "Mock output 2" } },
-    ],
-    learned_rules_count: Math.floor(Math.random() * 3)
-  };
-  alert(`Mock Task Submitted!\nID: ${mockResponse.main_task_id}\nStatus: ${mockResponse.status}\nData: ${JSON.stringify(taskData)}`);
-  return mockResponse;
-};
-
-
 export default function TasksPage() {
   const [userQuery, setUserQuery] = useState('');
   const [overallGoalDesc, setOverallGoalDesc] = useState('');
@@ -40,15 +20,25 @@ export default function TasksPage() {
     const agentIds = designatedAgents.split(',').map(id => id.trim()).filter(id => id);
 
     try {
-      // TODO: Replace with actual API call to /workflow/run_main_task
-      const result = await mockRunMainTask({ 
-        user_query: userQuery, 
-        overall_goal_desc: overallGoalDesc,
-        designated_agent_ids: agentIds
+      const response = await fetch('/api/workflow/run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          user_query: userQuery, 
+          overall_goal_desc: overallGoalDesc,
+          designated_agent_ids: agentIds
+        }),
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || 'Failed to submit task');
+      }
+      const result = await response.json();
       setTaskResult(result);
     } catch (err) {
-      setError('Failed to submit task.');
+      setError(err.message || 'Failed to submit task.');
       console.error(err);
     } finally {
       setIsLoading(false);

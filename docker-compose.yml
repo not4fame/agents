@@ -39,11 +39,10 @@ services:
     networks:
       - agent_network
 
-  backend:
+  python_api_service: # Renamed from 'backend'
     build: ./backend
-    container_name: backend_app
-    ports:
-      - "8000:8000" # Expose port for API
+    container_name: backend_app # Keeping container_name for consistency if needed, or can be changed
+    # 'ports' mapping removed, app inside still listens on 8000
     volumes:
       - ./backend:/usr/src/app # Mount code for development
     depends_on:
@@ -68,12 +67,22 @@ services:
     networks:
       - agent_network
     environment:
+      # Existing
       - NEXT_PUBLIC_MSAL_CLIENT_ID=${NEXT_PUBLIC_MSAL_CLIENT_ID:-YOUR_MSAL_CLIENT_ID_PLACEHOLDER}
-      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-YOUR_GOOGLE_CLIENT_ID_PLACEHOLDER}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-YOUR_GOOGLE_CLIENT_ID_PLACEHOLDER_FROM_ROOT_ENV} # Ensure this uses the root .env placeholder
+      # New NextAuth variables
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - AZURE_AD_CLIENT_ID=${AZURE_AD_CLIENT_ID}
+      - AZURE_AD_CLIENT_SECRET=${AZURE_AD_CLIENT_SECRET}
+      - AZURE_AD_TENANT_ID=${AZURE_AD_TENANT_ID}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL} # This should be the externally accessible URL, e.g., http://localhost:3000
+      - NEXTAUTH_URL_INTERNAL=${NEXTAUTH_URL_INTERNAL:-http://frontend:3000} # Internal URL for server-side NextAuth
       # Ensures Next.js rebuilds on changes in development
       - WATCHPACK_POLLING=true 
     depends_on:
-      - backend 
+      - python_api_service # Updated from 'backend'
 
   nginx:
     image: nginx:1.25-alpine
@@ -86,7 +95,7 @@ services:
     depends_on:
       - frontend
       - kibana
-      # - backend # Uncomment if proxying backend directly
+      # - python_api_service # No direct dependency needed if not proxying
     networks:
       - agent_network
 
